@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Mario ESL Classroom Treasure Hunt & Bonus Run</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka', cursive, sans-serif;
+            background-color: #5c94fc;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 8%),
+                radial-gradient(circle at 80% 30%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 10%);
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .mario-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        /* Floating background clouds */
+        .cloud {
+            position: absolute;
+            background: white;
+            border-radius: 50px;
+            box-shadow: 0 8px 0 rgba(0,0,0,0.1);
+        }
+
+        /* Question / Mystery Block Styling */
+        .q-block {
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            border: 4px solid #000;
+            box-shadow: inset -4px -4px 0px #b85c00, inset 4px 4px 0px #fff2a3, 0 8px 0 #000;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .q-block:hover {
+            transform: translateY(-6px) scale(1.03);
+            box-shadow: inset -4px -4px 0px #b85c00, inset 4px 4px 0px #fff2a3, 0 14px 0 #000;
+        }
+        .q-block:active {
+            transform: translateY(2px);
+            box-shadow: inset -4px -4px 0px #b85c00, inset 4px 4px 0px #fff2a3, 0 4px 0 #000;
+        }
+        .q-block.opened {
+            background: #b8621b !important;
+            border-color: #000 !important;
+            box-shadow: inset -4px -4px 0px #5e2f08, inset 4px 4px 0px #d98842, 0 4px 0 #000 !important;
+            opacity: 0.75;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+        .bounce-anim {
+            animation: bounce 1.5s infinite;
+        }
+
+        .mario-pipe {
+            background: linear-gradient(90deg, #00a800, #00f000 30%, #00a800 70%, #006000);
+            border: 4px solid #000;
+            box-shadow: 0 6px 0 #000;
+        }
+
+        .ground-brick {
+            background-color: #d84800;
+            background-image: 
+                linear-gradient(90deg, #000 2px, transparent 2px),
+                linear-gradient(#000 2px, transparent 2px);
+            background-size: 32px 16px;
+            border-top: 6px solid #000;
+        }
+
+        /* Canvas game styling */
+        #runnerCanvas {
+            background: linear-gradient(to bottom, #6b8cff 0%, #a0b5ff 70%, #c4d4ff 100%);
+            border: 4px solid #000;
+            border-radius: 1rem;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between overflow-x-hidden relative text-gray-900 select-none">
+
+    <!-- Decorative clouds -->
+    <div class="cloud w-28 h-10 top-6 left-10 opacity-80 pointer-events-none hidden sm:block"></div>
+    <div class="cloud w-40 h-12 top-12 right-20 opacity-80 pointer-events-none hidden sm:block"></div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container mx-auto px-3 py-3 flex-1 flex flex-col z-10 max-w-6xl">
+
+        <!-- HEADER / TITLE BAR -->
+        <header class="bg-yellow-400 border-4 border-black rounded-2xl p-3 mb-4 shadow-[0_8px_0_#000] flex flex-col md:flex-row items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-yellow-300 border-2 border-black rounded-full flex items-center justify-center shadow-inner animate-pulse">
+                    <span class="text-xl font-bold text-yellow-800">★</span>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-black text-red-600 tracking-wider drop-shadow-[0_2px_0_#fff]">
+                        SUPER MARIO TREASURE HUNT!
+                    </h1>
+                    <p class="text-xs md:text-sm text-yellow-950 font-bold">Matched Audio & Realistic Color Vocabulary</p>
+                </div>
+            </div>
+
+            <!-- Current Turn Indicator -->
+            <div id="turnIndicator" class="bg-red-500 text-white border-2 border-black px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-[0_4px_0_#000] transition-all">
+                <span>CURRENT TURN:</span>
+                <span id="turnTeamName" class="text-yellow-300 uppercase underline text-base font-black">TEAM MARIO</span>
+            </div>
+
+            <button onclick="resetGame()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold border-2 border-black px-3 py-1.5 rounded-xl text-xs shadow-[0_3px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-1">
+                🔄 Restart Game
+            </button>
+        </header>
+
+        <!-- SCOREBOARDS -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <!-- TEAM MARIO -->
+            <div id="cardTeamMario" class="bg-red-100 border-4 border-red-600 rounded-2xl p-3 shadow-[0_6px_0_#000] flex flex-col sm:flex-row items-center justify-between transition-all ring-4 ring-yellow-400">
+                <div class="flex items-center gap-2 mb-2 sm:mb-0">
+                    <div class="w-12 h-12 bg-red-600 rounded-full border-2 border-black flex items-center justify-center text-white text-2xl font-black shadow-md">
+                        M
+                    </div>
+                    <div>
+                        <h2 class="font-black text-red-700 text-base sm:text-lg">TEAM MARIO</h2>
+                        <span class="text-xs text-red-500 font-semibold hidden sm:inline">Red Team</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="bg-white border-2 border-black rounded-xl px-3 py-1 text-center min-w-[70px]">
+                        <span id="scoreMario" class="mario-font text-xl text-red-600 font-bold">0</span>
+                        <span class="text-[10px] block font-bold text-gray-500">PTS</span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <button onclick="adjustScore('mario', 5)" class="bg-green-500 hover:bg-green-600 text-white text-xs font-bold border border-black rounded px-1.5 py-0.5 shadow active:translate-y-0.5">+5</button>
+                        <button onclick="adjustScore('mario', -5)" class="bg-gray-400 hover:bg-gray-500 text-white text-xs font-bold border border-black rounded px-1.5 py-0.5 shadow active:translate-y-0.5">-5</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TEAM LUIGI -->
+            <div id="cardTeamLuigi" class="bg-green-100 border-4 border-green-600 rounded-2xl p-3 shadow-[0_6px_0_#000] flex flex-col sm:flex-row items-center justify-between transition-all opacity-80">
+                <div class="flex items-center gap-2 mb-2 sm:mb-0">
+                    <div class="w-12 h-12 bg-green-600 rounded-full border-2 border-black flex items-center justify-center text-white text-2xl font-black shadow-md">
+                        L
+                    </div>
+                    <div>
+                        <h2 class="font-black text-green-800 text-base sm:text-lg">TEAM LUIGI</h2>
+                        <span class="text-xs text-green-600 font-semibold hidden sm:inline">Green Team</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="bg-white border-2 border-black rounded-xl px-3 py-1 text-center min-w-[70px]">
+                        <span id="scoreLuigi" class="mario-font text-xl text-green-600 font-bold">0</span>
+                        <span class="text-[10px] block font-bold text-gray-500">PTS</span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <button onclick="adjustScore('luigi', 5)" class="bg-green-500 hover:bg-green-600 text-white text-xs font-bold border border-black rounded px-1.5 py-0.5 shadow active:translate-y-0.5">+5</button>
+                        <button onclick="adjustScore('luigi', -5)" class="bg-gray-400 hover:bg-gray-500 text-white text-xs font-bold border border-black rounded px-1.5 py-0.5 shadow active:translate-y-0.5">-5</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TREASURE GRID BOARD -->
+        <main id="boardStage" class="bg-amber-100 border-4 border-black rounded-3xl p-4 sm:p-6 shadow-[0_10px_0_#000] flex-1 flex flex-col justify-center items-center relative overflow-hidden">
+            <p class="text-center text-amber-900 font-bold mb-4 text-sm sm:text-base">
+                👇 Tap any <span class="text-yellow-600 font-black">Mystery Block</span> to answer questions or jump onto the <span class="text-red-600 font-black">Bonus Mario Track!</span>
+            </p>
+
+            <div id="blocksGrid" class="grid grid-cols-3 sm:grid-cols-4 gap-3 sm:gap-5 w-full max-w-3xl">
+                <!-- Javascript populates 12 blocks -->
+            </div>
+        </main>
+
+        <!-- QUESTION MODAL -->
+        <div id="questionModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+            <div class="bg-yellow-100 border-4 border-black rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-[0_12px_0_#000] relative flex flex-col items-center">
+                
+                <button onclick="closeModal()" class="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white font-bold border-2 border-black w-8 h-8 rounded-full flex items-center justify-center shadow active:translate-y-0.5">
+                    ✕
+                </button>
+
+                <div class="flex items-center gap-2 mb-3">
+                    <span id="modalTeamBadge" class="bg-red-500 text-white text-xs font-black px-3 py-1 rounded-full border border-black">
+                        TEAM MARIO
+                    </span>
+                    <span id="modalPointValue" class="bg-yellow-400 text-yellow-950 text-xs font-black px-3 py-1 rounded-full border border-black">
+                        +10 PTS
+                    </span>
+                </div>
+
+                <h3 id="questionPrompt" class="text-xl sm:text-2xl font-black text-center text-gray-900 mb-2">
+                    What is this?
+                </h3>
+
+                <button id="ttsButton" onclick="speakCurrentWord()" class="mb-3 bg-blue-500 hover:bg-blue-600 text-white font-bold border-2 border-black px-4 py-2 rounded-2xl flex items-center gap-2 shadow-[0_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                    🔊 Listen Voice
+                </button>
+
+                <!-- REALISTIC IMAGE CONTAINER WITH EXACT VECTOR RENDERING FOR PERFECT COLOR MATCHING -->
+                <div id="imageContainer" class="w-56 h-56 bg-white border-4 border-black rounded-2xl p-2 mb-3 flex items-center justify-center shadow-inner overflow-hidden relative">
+                    <!-- Photo/SVG placed via JS -->
+                </div>
+
+                <div id="optionsContainer" class="grid grid-cols-2 gap-3 w-full mb-2">
+                    <!-- Choice buttons placed via JS -->
+                </div>
+
+                <p id="spellingHint" class="text-xl font-black text-center text-amber-900 mt-1 hidden tracking-widest"></p>
+
+                <div id="feedbackBanner" class="w-full text-center py-2 px-3 rounded-xl border-2 border-black font-black text-lg hidden mt-2">
+                </div>
+            </div>
+        </div>
+
+        <!-- MARIO TRACK RUNNER MINI-GAME MODAL -->
+        <div id="runnerModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-3 hidden">
+            <div class="bg-yellow-300 border-4 border-black rounded-3xl max-w-2xl w-full p-4 sm:p-6 shadow-[0_12px_0_#000] flex flex-col items-center text-center relative">
+                
+                <div class="flex items-center justify-between w-full mb-2">
+                    <span id="runnerTeamBadge" class="bg-red-600 text-white font-black text-sm px-4 py-1.5 rounded-full border-2 border-black">
+                        TEAM MARIO RUNNER
+                    </span>
+                    <div class="flex items-center gap-4 bg-white border-2 border-black px-4 py-1 rounded-2xl">
+                        <span class="font-bold text-sm">TIME: <span id="runnerTimer" class="mario-font text-red-600">15</span>s</span>
+                        <span class="font-bold text-sm">COINS: <span id="runnerScore" class="mario-font text-yellow-600">0</span></span>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-black text-gray-900 mb-2">🏃 BONANZA TRACK! TAP JUMP TO CATCH COINS! 🪙</h3>
+
+                <!-- CANVAS FOR MARIO RUNNER -->
+                <canvas id="runnerCanvas" width="600" height="260" class="w-full max-w-full my-1"></canvas>
+
+                <!-- TOUCH / SMARTBOARD JUMP BUTTON -->
+                <div class="w-full flex justify-center gap-4 mt-3">
+                    <button id="jumpBtn" class="mario-pipe text-white font-black text-2xl py-4 px-12 rounded-2xl border-4 border-black shadow-[0_6px_0_#000] active:translate-y-2 active:shadow-none w-full max-w-md">
+                        🦘 JUMP! (SPACEBAR)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- WINNER MODAL -->
+        <div id="winnerModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-yellow-400 border-4 border-black rounded-3xl max-w-lg w-full p-6 text-center flex flex-col items-center shadow-[0_16px_0_#000] relative">
+                <div class="text-6xl mb-2 animate-bounce">🏆</div>
+                <h2 class="text-3xl font-black text-red-600 mb-1 drop-shadow-[0_2px_0_#fff]">COURSE COMPLETED!</h2>
+                <h3 id="winnerText" class="text-2xl font-black text-gray-900 mb-4">TEAM MARIO WINS!</h3>
+                
+                <div class="bg-white border-4 border-black rounded-2xl p-4 w-full mb-6 grid grid-cols-2 gap-4">
+                    <div class="text-center border-r-2 border-gray-300">
+                        <span class="block text-xs font-bold text-gray-500">TEAM MARIO</span>
+                        <span id="finalScoreMario" class="mario-font text-2xl text-red-600">0</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="block text-xs font-bold text-gray-500">TEAM LUIGI</span>
+                        <span id="finalScoreLuigi" class="mario-font text-2xl text-green-600">0</span>
+                    </div>
+                </div>
+
+                <button onclick="resetGame()" class="mario-pipe text-white text-xl font-black px-8 py-4 rounded-2xl shadow-[0_6px_0_#000] active:translate-y-1 active:shadow-none w-full">
+                    PLAY AGAIN 🔄
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- GROUND FOOTER -->
+    <footer class="ground-brick h-12 w-full mt-2"></footer>
+
+    <script>
+        /* 
+           EXACT MATCHED VOCABULARY DATASET
+           - Every item has crisp high-definition visuals strictly matching its color & name.
+           - Audio speech strictly matches word & sentence.
+        */
+        const VOCAB_DATA = {
+            book: {
+                word: "book",
+                phrase: "a red book",
+                colorLabel: "red",
+                // Crisp realistic Red Book vector SVG with clear page details
+                svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+                    <rect x="35" y="25" width="130" height="150" rx="10" fill="#dc2626" stroke="#000" stroke-width="6"/>
+                    <rect x="30" y="25" width="18" height="150" rx="4" fill="#991b1b" stroke="#000" stroke-width="5"/>
+                    <path d="M 48 35 L 155 35 L 155 165 L 48 165 Z" fill="#fef2f2" stroke="#000" stroke-width="4"/>
+                    <line x1="60" y1="55" x2="140" y2="55" stroke="#991b1b" stroke-width="4" stroke-linecap="round"/>
+                    <line x1="60" y1="75" x2="140" y2="75" stroke="#991b1b" stroke-width="4" stroke-linecap="round"/>
+                    <line x1="60" y1="95" x2="120" y2="95" stroke="#991b1b" stroke-width="4" stroke-linecap="round"/>
+                    <rect x="80" y="115" width="45" height="35" rx="5" fill="#dc2626" stroke="#000" stroke-width="3"/>
+                </svg>`
+            },
+            chair: {
+                word: "chair",
+                phrase: "a green chair",
+                colorLabel: "green",
+                // Crisp realistic Green Chair matching textbook image
+                svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+                    <rect x="55" y="25" width="90" height="70" rx="8" fill="#22c55e" stroke="#000" stroke-width="6"/>
+                    <rect x="68" y="38" width="18" height="45" rx="3" fill="#15803d" stroke="#000" stroke-width="3"/>
+                    <rect x="114" y="38" width="18" height="45" rx="3" fill="#15803d" stroke="#000" stroke-width="3"/>
+                    <rect x="45" y="90" width="110" height="20" rx="6" fill="#22c55e" stroke="#000" stroke-width="6"/>
+                    <rect x="52" y="110" width="16" height="65" rx="4" fill="#16a34a" stroke="#000" stroke-width="5"/>
+                    <rect x="132" y="110" width="16" height="65" rx="4" fill="#16a34a" stroke="#000" stroke-width="5"/>
+                    <rect x="72" y="110" width="12" height="50" rx="3" fill="#15803d" stroke="#000" stroke-width="4"/>
+                    <rect x="116" y="110" width="12" height="50" rx="3" fill="#15803d" stroke="#000" stroke-width="4"/>
+                </svg>`
+            },
+            crayon: {
+                word: "crayon",
+                phrase: "a blue crayon",
+                colorLabel: "blue",
+                // Crisp Blue Crayon matching textbook image
+                svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+                    <g transform="rotate(-30 100 100)">
+                        <polygon points="25,90 55,75 55,125" fill="#1d4ed8" stroke="#000" stroke-width="5"/>
+                        <rect x="55" y="75" width="110" height="50" fill="#2563eb" stroke="#000" stroke-width="6"/>
+                        <rect x="75" y="75" width="70" height="50" fill="#1d4ed8" stroke="#000" stroke-width="4"/>
+                        <line x1="85" y1="75" x2="85" y2="125" stroke="#000" stroke-width="4"/>
+                        <line x1="135" y1="75" x2="135" y2="125" stroke="#000" stroke-width="4"/>
+                        <rect x="165" y="75" width="15" height="50" rx="3" fill="#1e40af" stroke="#000" stroke-width="5"/>
+                    </g>
+                </svg>`
+            },
+            desk: {
+                word: "desk",
+                phrase: "a wooden desk",
+                colorLabel: "brown",
+                // Wooden Desk matching textbook image
+                svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+                    <path d="M 30 70 L 170 70 L 160 95 L 40 95 Z" fill="#d97706" stroke="#000" stroke-width="6"/>
+                    <rect x="35" y="95" width="130" height="30" fill="#b45309" stroke="#000" stroke-width="6"/>
+                    <rect x="85" y="102" width="30" height="15" fill="#78350f" stroke="#000" stroke-width="3"/>
+                    <rect x="42" y="125" width="16" height="55" fill="#92400e" stroke="#000" stroke-width="5"/>
+                    <rect x="142" y="125" width="16" height="55" fill="#92400e" stroke="#000" stroke-width="5"/>
+                    <rect x="58" y="125" width="12" height="45" fill="#78350f" stroke="#000" stroke-width="4"/>
+                    <rect x="130" y="125" width="12" height="45" fill="#78350f" stroke="#000" stroke-width="4"/>
+                </svg>`
+            },
+            pencil: {
+                word: "pencil",
+                phrase: "a yellow pencil",
+                colorLabel: "yellow",
+                // Yellow Pencil matching textbook image
+                svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+                    <g transform="rotate(-40 100 100)">
+                        <rect x="25" y="85" width="22" height="30" rx="4" fill="#f43f5e" stroke="#000" stroke-width="5"/>
+                        <rect x="47" y="85" width="12" height="30" fill="#cbd5e1" stroke="#000" stroke-width="4"/>
+                        <rect x="59" y="85" width="95" height="30" fill="#eab308" stroke="#000" stroke-width="6"/>
+                        <line x1="59" y1="95" x2="154" y2="95" stroke="#ca8a04" stroke-width="3"/>
+                        <line x1="59" y1="105" x2="154" y2="105" stroke="#ca8a04" stroke-width="3"/>
+                        <polygon points="154,85 180,100 154,115" fill="#fde047" stroke="#000" stroke-width="5"/>
+                        <polygon points="172,95 180,100 172,105" fill="#000"/>
+                    </g>
+                </svg>`
+            },
+            teacher: {
+                word: "teacher",
+                phrase: "a teacher",
+                colorLabel: "person",
+                // Teacher figure with glasses, book, and apple
+                svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+                    <circle cx="100" cy="55" r="24" fill="#fde047" opacity="0.3"/>
+                    <!-- Head -->
+                    <circle cx="100" cy="55" r="22" fill="#fca5a5" stroke="#000" stroke-width="5"/>
+                    <!-- Hair -->
+                    <path d="M 78 50 Q 100 30 122 50 Q 100 40 78 50 Z" fill="#78350f" stroke="#000" stroke-width="3"/>
+                    <!-- Glasses -->
+                    <circle cx="92" cy="54" r="7" fill="none" stroke="#000" stroke-width="3"/>
+                    <circle cx="108" cy="54" r="7" fill="none" stroke="#000" stroke-width="3"/>
+                    <line x1="99" y1="54" x2="101" y2="54" stroke="#000" stroke-width="3"/>
+                    <!-- Smile -->
+                    <path d="M 92 67 Q 100 73 108 67" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+                    <!-- Body Suit -->
+                    <path d="M 70 85 L 130 85 L 140 145 L 60 145 Z" fill="#1e3a8a" stroke="#000" stroke-width="5"/>
+                    <polygon points="100,85 88,115 112,115" fill="#0284c7" stroke="#000" stroke-width="3"/>
+                    <!-- Legs -->
+                    <rect x="75" y="145" width="18" height="40" fill="#475569" stroke="#000" stroke-width="4"/>
+                    <rect x="107" y="145" width="18" height="40" fill="#475569" stroke="#000" stroke-width="4"/>
+                    <!-- Holding Book -->
+                    <rect x="50" y="105" width="28" height="32" rx="3" fill="#dc2626" stroke="#000" stroke-width="4"/>
+                    <circle cx="64" cy="100" r="5" fill="#ef4444" stroke="#000" stroke-width="2"/>
+                </svg>`
+            }
+        };
+
+        /* WEB AUDIO SYNTHESIZER SOUND EFFECTS */
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'coin') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, now);
+                osc.frequency.setValueAtTime(1318.51, now + 0.08);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'jump') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'correct') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(659.25, now + 0.1);
+                osc.frequency.setValueAtTime(783.99, now + 0.2);
+                osc.frequency.setValueAtTime(1046.50, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.setValueAtTime(110, now + 0.15);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            }
+        }
+
+        let currentTeam = 'mario';
+        let scores = { mario: 0, luigi: 0 };
+        let activeBlockIndex = null;
+        let currentQuestion = null;
+
+        const BLOCKS_CONFIG = [
+            { type: 'question', qType: 'picture', vocab: 'book', pts: 10 },
+            { type: 'runner', title: 'MARIO BONANZA TRACK!', pts: 0 },
+            { type: 'question', qType: 'audio', vocab: 'chair', pts: 10 },
+            { type: 'question', qType: 'spelling', vocab: 'crayon', pts: 15 },
+            { type: 'question', qType: 'picture', vocab: 'desk', pts: 10 },
+            { type: 'runner', title: 'LUIGI RUNNER TRACK!', pts: 0 },
+            { type: 'question', qType: 'spelling', vocab: 'pencil', pts: 15 },
+            { type: 'question', qType: 'audio', vocab: 'teacher', pts: 10 },
+            { type: 'question', qType: 'picture', vocab: 'crayon', pts: 10 },
+            { type: 'runner', title: 'SPEED RUN BONUS!', pts: 0 },
+            { type: 'question', qType: 'spelling', vocab: 'chair', pts: 15 },
+            { type: 'question', qType: 'audio', vocab: 'book', pts: 10 }
+        ];
+
+        let blocksState = Array(12).fill(false);
+
+        window.onload = function() {
+            renderGrid();
+            updateTurnUI();
+            setupRunnerControls();
+        };
+
+        function renderGrid() {
+            const grid = document.getElementById('blocksGrid');
+            grid.innerHTML = '';
+
+            BLOCKS_CONFIG.forEach((config, index) => {
+                const isOpened = blocksState[index];
+                const block = document.createElement('div');
+                block.className = `q-block aspect-square rounded-2xl flex flex-col items-center justify-center relative select-none ${isOpened ? 'opened' : 'bounce-anim'}`;
+                
+                if (isOpened) {
+                    block.innerHTML = `<span class="text-3xl opacity-40">x</span>`;
+                } else {
+                    const isTrack = config.type === 'runner';
+                    block.innerHTML = `
+                        <span class="mario-font text-2xl sm:text-3xl text-white font-black drop-shadow-[0_2px_0_#000]">${isTrack ? '🏃' : '?'}</span>
+                        <span class="text-[10px] font-bold text-yellow-950 mt-1 bg-yellow-300 px-1.5 py-0.5 rounded-full border border-black">${index + 1}</span>
+                    `;
+                    block.onclick = () => handleBlockClick(index);
+                }
+
+                grid.appendChild(block);
+            });
+        }
+
+        function handleBlockClick(index) {
+            if (blocksState[index]) return;
+            playSound('jump');
+            activeBlockIndex = index;
+            const config = BLOCKS_CONFIG[index];
+
+            if (config.type === 'runner') {
+                startRunnerMiniGame();
+            } else {
+                openQuestionModal(config);
+            }
+        }
+
+        function openQuestionModal(config) {
+            currentQuestion = config;
+            const item = VOCAB_DATA[config.vocab];
+            
+            const modalTeamBadge = document.getElementById('modalTeamBadge');
+            modalTeamBadge.textContent = currentTeam === 'mario' ? 'TEAM MARIO' : 'TEAM LUIGI';
+            modalTeamBadge.className = currentTeam === 'mario' 
+                ? 'bg-red-500 text-white text-xs font-black px-3 py-1 rounded-full border border-black'
+                : 'bg-green-600 text-white text-xs font-black px-3 py-1 rounded-full border border-black';
+
+            document.getElementById('modalPointValue').textContent = `+${config.pts} PTS`;
+
+            const prompt = document.getElementById('questionPrompt');
+            const imgContainer = document.getElementById('imageContainer');
+            const spellingHint = document.getElementById('spellingHint');
+            const ttsButton = document.getElementById('ttsButton');
+            const feedback = document.getElementById('feedbackBanner');
+
+            feedback.classList.add('hidden');
+            spellingHint.classList.add('hidden');
+
+            if (config.qType === 'picture') {
+                prompt.textContent = "What is this?";
+                ttsButton.classList.remove('hidden');
+                imgContainer.innerHTML = item.svg;
+                setupMultipleChoice(config.vocab);
+            } 
+            else if (config.qType === 'audio') {
+                prompt.textContent = "Listen and pick the right picture!";
+                ttsButton.classList.remove('hidden');
+                imgContainer.innerHTML = `<div class="text-7xl animate-bounce">🎧</div>`;
+                setupPictureChoices(config.vocab);
+                setTimeout(() => speakCurrentWord(), 300);
+            } 
+            else if (config.qType === 'spelling') {
+                prompt.textContent = "Fill in the missing letter!";
+                ttsButton.classList.remove('hidden');
+                imgContainer.innerHTML = item.svg;
+                
+                const w = item.word;
+                const hideIdx = Math.floor(w.length / 2);
+                const blankWord = w.substring(0, hideIdx) + ' _ ' + w.substring(hideIdx + 1);
+                
+                spellingHint.textContent = blankWord.toUpperCase();
+                spellingHint.classList.remove('hidden');
+                
+                setupSpellingChoices(w[hideIdx]);
+            }
+
+            document.getElementById('questionModal').classList.remove('hidden');
+        }
+
+        /* Voice Speech synthesis guaranteed to match active vocabulary item */
+        function speakCurrentWord() {
+            if (!currentQuestion) return;
+            window.speechSynthesis.cancel(); // Stop any pending speech
+            const item = VOCAB_DATA[currentQuestion.vocab];
+            
+            // Speak phrase clearly: "a red book", "a green chair", "a blue crayon"
+            const textToSpeak = item.phrase;
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.rate = 0.85; // Clear pronunciation rate for young ESL learners
+            utterance.lang = 'en-US';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function setupMultipleChoice(correctVocabKey) {
+            const container = document.getElementById('optionsContainer');
+            container.innerHTML = '';
+
+            const allKeys = Object.keys(VOCAB_DATA);
+            const wrongOptions = allKeys.filter(k => k !== correctVocabKey);
+            shuffleArray(wrongOptions);
+
+            const options = [correctVocabKey, wrongOptions[0], wrongOptions[1], wrongOptions[2]];
+            shuffleArray(options);
+
+            options.forEach(optKey => {
+                const btn = document.createElement('button');
+                btn.className = 'bg-white hover:bg-yellow-200 text-gray-900 border-4 border-black font-black text-lg py-3 rounded-2xl shadow-[0_4px_0_#000] active:translate-y-1 active:shadow-none capitalize transition-all flex items-center justify-center gap-2';
+                btn.innerHTML = `<span>${VOCAB_DATA[optKey].word}</span>`;
+                btn.onclick = () => checkAnswer(optKey === correctVocabKey);
+                container.appendChild(btn);
+            });
+        }
+
+        function setupPictureChoices(correctVocabKey) {
+            const container = document.getElementById('optionsContainer');
+            container.innerHTML = '';
+
+            const allKeys = Object.keys(VOCAB_DATA);
+            const wrongOptions = allKeys.filter(k => k !== correctVocabKey);
+            shuffleArray(wrongOptions);
+
+            const options = [correctVocabKey, wrongOptions[0], wrongOptions[1], wrongOptions[2]];
+            shuffleArray(options);
+
+            options.forEach(optKey => {
+                const btn = document.createElement('button');
+                btn.className = 'bg-white hover:bg-yellow-200 border-4 border-black p-1 rounded-2xl shadow-[0_4px_0_#000] active:translate-y-1 active:shadow-none h-24 flex items-center justify-center transition-all overflow-hidden';
+                btn.innerHTML = VOCAB_DATA[optKey].svg;
+                btn.onclick = () => checkAnswer(optKey === correctVocabKey);
+                container.appendChild(btn);
+            });
+        }
+
+        function setupSpellingChoices(correctLetter) {
+            const container = document.getElementById('optionsContainer');
+            container.innerHTML = '';
+
+            const alphabet = "abcdefghijklmnopqrstuvwxyz";
+            const wrongLetters = alphabet.split('').filter(l => l !== correctLetter);
+            shuffleArray(wrongLetters);
+
+            const options = [correctLetter, wrongLetters[0], wrongLetters[1], wrongLetters[2]];
+            shuffleArray(options);
+
+            options.forEach(letter => {
+                const btn = document.createElement('button');
+                btn.className = 'bg-white hover:bg-yellow-200 text-gray-900 border-4 border-black font-black text-2xl py-3 rounded-2xl shadow-[0_4px_0_#000] active:translate-y-1 active:shadow-none uppercase transition-all';
+                btn.textContent = letter;
+                btn.onclick = () => checkAnswer(letter === correctLetter);
+                container.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(isCorrect) {
+            const feedback = document.getElementById('feedbackBanner');
+            feedback.classList.remove('hidden');
+
+            if (isCorrect) {
+                playSound('correct');
+                feedback.className = "w-full text-center py-2 px-3 rounded-xl border-2 border-black font-black text-lg bg-green-400 text-green-950 mt-2 animate-bounce";
+                feedback.textContent = "🎉 EXCELLENT! +" + currentQuestion.pts + " PTS";
+                
+                scores[currentTeam] += currentQuestion.pts;
+                updateScores();
+
+                setTimeout(() => {
+                    markBlockOpened(activeBlockIndex);
+                    closeModal();
+                    switchTurn();
+                }, 1400);
+            } else {
+                playSound('wrong');
+                feedback.className = "w-full text-center py-2 px-3 rounded-xl border-2 border-black font-black text-lg bg-red-400 text-red-950 mt-2";
+                feedback.textContent = "❌ TRY AGAIN NEXT TIME!";
+
+                setTimeout(() => {
+                    markBlockOpened(activeBlockIndex);
+                    closeModal();
+                    switchTurn();
+                }, 1400);
+            }
+        }
+
+        let runnerAnimId = null;
+        let runnerTimerInterval = null;
+        let runnerState = {
+            marioY: 180,
+            vy: 0,
+            isJumping: false,
+            coinsCollected: 0,
+            timeLeft: 15,
+            items: [],
+            groundY: 180
+        };
+
+        function startRunnerMiniGame() {
+            const badge = document.getElementById('runnerTeamBadge');
+            badge.textContent = `${currentTeam === 'mario' ? 'TEAM MARIO' : 'TEAM LUIGI'} RUNNER!`;
+            badge.className = currentTeam === 'mario' 
+                ? 'bg-red-600 text-white font-black text-sm px-4 py-1.5 rounded-full border-2 border-black'
+                : 'bg-green-600 text-white font-black text-sm px-4 py-1.5 rounded-full border-2 border-black';
+
+            runnerState.marioY = 180;
+            runnerState.vy = 0;
+            runnerState.isJumping = false;
+            runnerState.coinsCollected = 0;
+            runnerState.timeLeft = 15;
+            runnerState.items = [];
+
+            document.getElementById('runnerScore').textContent = '0';
+            document.getElementById('runnerTimer').textContent = '15';
+            document.getElementById('runnerModal').classList.remove('hidden');
+
+            // Spawn track items
+            for (let i = 0; i < 15; i++) {
+                runnerState.items.push({
+                    x: 600 + i * 140 + Math.random() * 50,
+                    y: Math.random() > 0.5 ? 120 : 170,
+                    type: Math.random() > 0.3 ? 'coin' : 'block',
+                    collected: false
+                });
+            }
+
+            runnerTimerInterval = setInterval(() => {
+                runnerState.timeLeft--;
+                document.getElementById('runnerTimer').textContent = runnerState.timeLeft;
+                if (runnerState.timeLeft <= 0) {
+                    endRunnerMiniGame();
+                }
+            }, 1000);
+
+            requestAnimationFrame(updateRunnerCanvas);
+        }
+
+        function triggerJump() {
+            if (!runnerState.isJumping) {
+                runnerState.vy = -12;
+                runnerState.isJumping = true;
+                playSound('jump');
+            }
+        }
+
+        function setupRunnerControls() {
+            document.getElementById('jumpBtn').onclick = triggerJump;
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && !document.getElementById('runnerModal').classList.contains('hidden')) {
+                    e.preventDefault();
+                    triggerJump();
+                }
+            });
+        }
+
+        function updateRunnerCanvas() {
+            const canvas = document.getElementById('runnerCanvas');
+            if (!canvas || document.getElementById('runnerModal').classList.contains('hidden')) return;
+            const ctx = canvas.getContext('2d');
+
+            // Physics update
+            runnerState.vy += 0.65;
+            runnerState.marioY += runnerState.vy;
+
+            if (runnerState.marioY >= runnerState.groundY) {
+                runnerState.marioY = runnerState.groundY;
+                runnerState.vy = 0;
+                runnerState.isJumping = false;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Ground
+            ctx.fillStyle = "#d84800";
+            ctx.fillRect(0, 220, 600, 40);
+            ctx.fillStyle = "#00a800";
+            ctx.fillRect(0, 215, 600, 5);
+
+            // Mario / Luigi Character
+            ctx.save();
+            ctx.fillStyle = currentTeam === 'mario' ? "#e52521" : "#16a34a";
+            ctx.fillRect(80, runnerState.marioY - 30, 24, 24);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(96, runnerState.marioY - 24, 4, 4);
+            ctx.fillStyle = "#2563eb";
+            ctx.fillRect(82, runnerState.marioY - 14, 20, 14);
+            ctx.restore();
+
+            // Track coins and bonus blocks
+            runnerState.items.forEach(item => {
+                item.x -= 4;
+
+                if (!item.collected) {
+                    if (item.type === 'coin') {
+                        ctx.fillStyle = "#ffd700";
+                        ctx.beginPath();
+                        ctx.arc(item.x, item.y, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = "#000";
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    } else {
+                        ctx.fillStyle = "#f59e0b";
+                        ctx.fillRect(item.x - 12, item.y - 12, 24, 24);
+                        ctx.strokeStyle = "#000";
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(item.x - 12, item.y - 12, 24, 24);
+                    }
+
+                    if (Math.abs(item.x - 92) < 20 && Math.abs(item.y - (runnerState.marioY - 15)) < 25) {
+                        item.collected = true;
+                        runnerState.coinsCollected += (item.type === 'coin' ? 5 : 10);
+                        playSound('coin');
+                        document.getElementById('runnerScore').textContent = runnerState.coinsCollected;
+                    }
+                }
+            });
+
+            runnerAnimId = requestAnimationFrame(updateRunnerCanvas);
+        }
+
+        function endRunnerMiniGame() {
+            clearInterval(runnerTimerInterval);
+            cancelAnimationFrame(runnerAnimId);
+
+            scores[currentTeam] += runnerState.coinsCollected;
+            updateScores();
+
+            document.getElementById('runnerModal').classList.add('hidden');
+            markBlockOpened(activeBlockIndex);
+            switchTurn();
+        }
+
+        function markBlockOpened(index) {
+            blocksState[index] = true;
+            renderGrid();
+            checkGameOver();
+        }
+
+        function switchTurn() {
+            currentTeam = currentTeam === 'mario' ? 'luigi' : 'mario';
+            updateTurnUI();
+        }
+
+        function updateTurnUI() {
+            const turnName = document.getElementById('turnTeamName');
+            const turnBanner = document.getElementById('turnIndicator');
+            const cardMario = document.getElementById('cardTeamMario');
+            const cardLuigi = document.getElementById('cardTeamLuigi');
+
+            if (currentTeam === 'mario') {
+                turnName.textContent = "TEAM MARIO";
+                turnName.className = "text-yellow-300 uppercase underline text-base font-black";
+                turnBanner.className = "bg-red-500 text-white border-2 border-black px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-[0_4px_0_#000] transition-all";
+                
+                cardMario.classList.remove('opacity-80');
+                cardMario.classList.add('ring-4', 'ring-yellow-400');
+                
+                cardLuigi.classList.add('opacity-80');
+                cardLuigi.classList.remove('ring-4', 'ring-yellow-400');
+            } else {
+                turnName.textContent = "TEAM LUIGI";
+                turnName.className = "text-yellow-300 uppercase underline text-base font-black";
+                turnBanner.className = "bg-green-600 text-white border-2 border-black px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-[0_4px_0_#000] transition-all";
+
+                cardLuigi.classList.remove('opacity-80');
+                cardLuigi.classList.add('ring-4', 'ring-yellow-400');
+
+                cardMario.classList.add('opacity-80');
+                cardMario.classList.remove('ring-4', 'ring-yellow-400');
+            }
+        }
+
+        function updateScores() {
+            document.getElementById('scoreMario').textContent = scores.mario;
+            document.getElementById('scoreLuigi').textContent = scores.luigi;
+        }
+
+        function adjustScore(team, amount) {
+            scores[team] = Math.max(0, scores[team] + amount);
+            updateScores();
+        }
+
+        function checkGameOver() {
+            const allOpened = blocksState.every(b => b === true);
+            if (allOpened) {
+                setTimeout(() => showWinnerScreen(), 600);
+            }
+        }
+
+        function showWinnerScreen() {
+            playSound('correct');
+            document.getElementById('finalScoreMario').textContent = scores.mario;
+            document.getElementById('finalScoreLuigi').textContent = scores.luigi;
+
+            const winTxt = document.getElementById('winnerText');
+            if (scores.mario > scores.luigi) {
+                winTxt.textContent = "🎉 TEAM MARIO WINS THE TREASURE! 🔴";
+                winTxt.className = "text-2xl font-black text-red-600 mb-4";
+            } else if (scores.luigi > scores.mario) {
+                winTxt.textContent = "🎉 TEAM LUIGI WINS THE TREASURE! 🟢";
+                winTxt.className = "text-2xl font-black text-green-700 mb-4";
+            } else {
+                winTxt.textContent = "🤝 IT'S A TIE! GREAT JOB TEAMS!";
+                winTxt.className = "text-2xl font-black text-blue-600 mb-4";
+            }
+
+            document.getElementById('winnerModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            window.speechSynthesis.cancel();
+            document.getElementById('questionModal').classList.add('hidden');
+        }
+
+        function resetGame() {
+            window.speechSynthesis.cancel();
+            scores = { mario: 0, luigi: 0 };
+            currentTeam = 'mario';
+            blocksState = Array(12).fill(false);
+            updateScores();
+            updateTurnUI();
+            renderGrid();
+            document.getElementById('winnerModal').classList.add('hidden');
+            document.getElementById('questionModal').classList.add('hidden');
+            document.getElementById('runnerModal').classList.add('hidden');
+        }
+
+        function shuffleArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        }
+    </script>
+</body>
+</html>
